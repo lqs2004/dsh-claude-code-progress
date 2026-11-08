@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Claude Code progress",
+    "description": "A live right-sidebar panel for Claude Code tasks delegated from this session: current tool, todo progress, timeline, duration and token usage."
+  }
+}

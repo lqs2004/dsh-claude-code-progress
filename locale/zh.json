@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Claude Code 进度",
+    "description": "在右侧栏实时显示本会话委派的 Claude Code 任务：当前步骤、待办进度、时间线、耗时与 token 用量。"
+  }
+}
