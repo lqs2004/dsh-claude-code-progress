@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 10
+    const CLIENT_BUILD = 11
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -48,8 +48,7 @@ window.__ModuleLoader__.load({
       'detail.diff': '改动',
       'detail.empty': '（空）',
       'detail.loading': '读取中…',
-      'thought.title': '思考',
-      'thought.expand': '查看全部',
+      'thought.title': 'Thinking',
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
@@ -92,7 +91,6 @@ window.__ModuleLoader__.load({
       'detail.empty': '(empty)',
       'detail.loading': 'Loading…',
       'thought.title': 'Thinking',
-      'thought.expand': 'Show all',
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
@@ -146,15 +144,16 @@ window.__ModuleLoader__.load({
 .ccp-todo.is-done .ccp-todo-text{text-decoration:line-through;opacity:.6}
 .ccp-todo.is-active{color:var(--dsw-alias-label-primary)}
 .ccp-todo.is-active .ccp-todo-mark{color:var(--ccp-accent)}
-.ccp-thoughts{display:flex;flex-direction:column;gap:4px;padding:2px 0 2px 10px;border-left:2px solid color-mix(in srgb, var(--ccp-accent) 30%, transparent);background:transparent;border-radius:0}
-.ccp-thought-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em;border:0;background:none;padding:0;font-family:inherit;cursor:pointer}
+.ccp-thoughts{display:flex;flex-direction:column;gap:4px}
+.ccp-thoughts.is-open{padding-left:10px;border-left:2px solid color-mix(in srgb, var(--ccp-accent) 30%, transparent)}
+.ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em;border:0;background:none;padding:0;font-family:inherit;cursor:pointer;align-self:flex-start}
 .ccp-thought-title:hover{color:var(--dsw-alias-label-primary)}
 .ccp-thought-title.is-live{color:var(--ccp-accent)}
 .ccp-thought-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
 .ccp-thought-title.is-live .ccp-thought-dot{animation:ccp-pulse 1.4s ease-in-out infinite}
+.ccp-thought-count{font-weight:500;font-size:10.5px;opacity:.7}
+.ccp-thought-body{display:flex;flex-direction:column;gap:6px}
 .ccp-thought{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);opacity:.92;white-space:pre-wrap;word-break:break-word}
-.ccp-thought.is-clamped{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;opacity:.8}
 .ccp-steps{display:flex;flex-direction:column;gap:2px}
 .ccp-step{display:flex;flex-direction:column;gap:2px;min-width:0;border-radius:7px}
 .ccp-step.is-openable{cursor:pointer}
@@ -491,29 +490,28 @@ window.__ModuleLoader__.load({
 
     function Thoughts({ run, t }) {
       const thoughts = Array.isArray(run.thoughts) ? run.thoughts : []
-      const [expanded, setExpanded] = useState(() => run.status === 'running' || run.status === 'starting')
+      const [expanded, setExpanded] = useState(false)
       if (thoughts.length === 0) return null
       const live = run.status === 'running' && run.phase === 'thinking'
-      const latest = thoughts[thoughts.length - 1]
-      return h('div', { className: 'ccp-thoughts' },
-        h('div', { className: 'ccp-thought-head' },
-          h('button', {
-            type: 'button',
-            className: `ccp-thought-title${live ? ' is-live' : ''}`,
-            'aria-expanded': expanded,
-            onClick: () => setExpanded((value) => !value),
-          },
-            h('span', { className: 'ccp-thought-dot' }),
-            `${t('thought.title')} · ${thoughts.length}`,
-            h('span', { className: 'ccp-chev' }, expanded ? '▾' : '▸'),
-          ),
+      const label = live ? `${t('thought.title')}…` : t('thought.title')
+      return h('div', { className: `ccp-thoughts${expanded ? ' is-open' : ''}` },
+        h('button', {
+          type: 'button',
+          className: `ccp-thought-title${live ? ' is-live' : ''}`,
+          'aria-expanded': expanded,
+          onClick: () => setExpanded((value) => !value),
+        },
+          h('span', { className: 'ccp-thought-dot' }),
+          label,
+          h('span', { className: 'ccp-thought-count' }, `· ${thoughts.length}`),
+          h('span', { className: 'ccp-chev' }, expanded ? '▾' : '▸'),
         ),
         expanded
-          ? thoughts.map((thought, index) => h('div', {
+          ? h('div', { className: 'ccp-thought-body' }, ...thoughts.map((thought, index) => h('div', {
               key: `${thought.at}-${index}`,
               className: 'ccp-thought',
-            }, thought.text))
-          : h('div', { className: 'ccp-thought is-clamped' }, latest.text),
+            }, thought.text)))
+          : null,
       )
     }
 
