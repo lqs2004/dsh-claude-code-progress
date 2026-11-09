@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 11
+    const CLIENT_BUILD = 12
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -154,24 +154,19 @@ window.__ModuleLoader__.load({
 .ccp-thought-count{font-weight:500;font-size:10.5px;opacity:.7}
 .ccp-thought-body{display:flex;flex-direction:column;gap:6px}
 .ccp-thought{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);opacity:.92;white-space:pre-wrap;word-break:break-word}
-.ccp-steps{display:flex;flex-direction:column;gap:2px}
+.ccp-steps{display:flex;flex-direction:column;gap:3px}
 .ccp-step{display:flex;flex-direction:column;gap:2px;min-width:0;border-radius:7px}
 .ccp-step.is-openable{cursor:pointer}
 .ccp-step.is-openable:hover{background:var(--dsw-alias-bg-layer-2)}
-.ccp-step-row{display:flex;gap:6px;align-items:baseline;font-size:12px;color:var(--dsw-alias-label-secondary);min-width:0;padding:1px 3px}
-.ccp-step-time{flex:none;font-variant-numeric:tabular-nums;opacity:.8;width:34px}
-.ccp-step-name{flex:none;font-family:var(--ccp-mono);font-size:11px;font-weight:600;line-height:1.65;padding:0 5px;border-radius:5px;max-width:108px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.ccp-tool-bash{background:color-mix(in srgb, var(--ccp-accent) 16%, transparent);color:var(--ccp-accent)}
-.ccp-tool-edit{background:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 20%, transparent);color:var(--dsw-alias-state-warn-primary)}
-.ccp-tool-read{background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent);color:var(--dsw-alias-state-success-primary)}
-.ccp-step-detail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary);opacity:.88}
-.ccp-step-ok{flex:none;color:var(--dsw-alias-state-success-primary)}
-.ccp-step-bad{flex:none;color:var(--dsw-alias-state-error-primary)}
-.ccp-step-live{flex:none;color:var(--ccp-accent);animation:ccp-pulse 1.4s ease-in-out infinite}
+.ccp-step-row{display:flex;gap:6px;align-items:baseline;font-size:12px;color:var(--dsw-alias-label-secondary);min-width:0;padding:2px 3px}
+.ccp-step-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary);align-self:center}
+.ccp-step-dot.is-bad{background:var(--dsw-alias-state-error-primary)}
+.ccp-step-dot.is-live{background:var(--ccp-accent);animation:ccp-pulse 1.4s ease-in-out infinite}
+.ccp-step-name{flex:none;font-family:var(--ccp-mono);font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.ccp-step-arg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.ccp-step-time{flex:none;font-size:10.5px;font-variant-numeric:tabular-nums;opacity:.75}
+.ccp-say{font-size:12.5px;line-height:1.6;color:var(--dsw-alias-label-primary);opacity:.92;padding:1px 3px 1px 13px;white-space:pre-wrap;word-break:break-word}
 .ccp-chev{flex:none;opacity:.55;font-size:9px;width:8px}
-.ccp-step-preview{margin:0 3px 2px 41px;padding:2px 7px;border-radius:0 6px 6px 0;border-left:2px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;white-space:pre-wrap}
-.ccp-step-preview.is-ok{border-left-color:var(--dsw-alias-state-success-primary)}
-.ccp-step-preview.is-bad{border-left-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
 .ccp-delta{flex:none;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;border-radius:4px;line-height:1.65}
 .ccp-delta.is-add{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent)}
 .ccp-delta.is-del{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 16%, transparent)}
@@ -182,7 +177,7 @@ window.__ModuleLoader__.load({
 .ccp-diff-line.is-ctx{color:var(--dsw-alias-label-secondary);opacity:.75}
 .ccp-diff-sign{flex:none;width:9px;text-align:center;font-weight:700;opacity:.9}
 .ccp-diff-text{flex:1;min-width:0}
-.ccp-detail{margin:2px 3px 6px 41px;padding:7px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1);min-width:0}
+.ccp-detail{margin:3px 3px 6px 13px;padding:7px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1);min-width:0}
 .ccp-detail-label{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-secondary);margin:0 0 3px;font-weight:600}
 .ccp-detail-label.is-input{color:var(--ccp-accent)}
 .ccp-detail-label.is-result{color:var(--dsw-alias-state-success-primary)}
@@ -221,22 +216,6 @@ window.__ModuleLoader__.load({
     function formatOffset(at, startedAt) {
       const seconds = Math.max(0, Math.round((Number(at) - Number(startedAt)) / 1000))
       return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-    }
-
-    function formatTokens(value) {
-      const count = Number(value) || 0
-      if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
-      if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
-      return String(count)
-    }
-
-    /** Colour family of a tool name, for the step pill. */
-    function toolKind(tool) {
-      const name = String(tool ?? '')
-      if (name === 'Bash' || name === 'BashOutput') return 'bash'
-      if (name === 'Write' || name === 'Edit' || name === 'MultiEdit' || name === 'NotebookEdit') return 'edit'
-      if (name === 'Read' || name === 'Glob' || name === 'Grep') return 'read'
-      return 'other'
     }
 
     function apiPath(sessionId, source) {
@@ -447,11 +426,13 @@ window.__ModuleLoader__.load({
 
     function Step({ run, step, startedAt, t }) {
       const [open, setOpen] = useState(false)
+      if (step.kind === 'say') {
+        return h('div', { className: 'ccp-say' }, String(step.text ?? ''))
+      }
       const canOpen = step.kind === 'tool'
       const detail = useStepDetail(run.id, step.seq, open && canOpen)
-      const isSay = step.kind === 'say'
-      const label = isSay ? t('step.say') : String(step.tool ?? '')
-      const text = isSay ? String(step.text ?? '') : String(step.detail ?? '')
+      const label = String(step.tool ?? '')
+      const arg = String(step.detail ?? '')
       const status = step.status === 'error' ? 'bad' : step.status === 'running' ? 'live' : 'ok'
       const toggle = () => {
         if (canOpen) setOpen((value) => !value)
@@ -461,7 +442,7 @@ window.__ModuleLoader__.load({
           className: 'ccp-step-row',
           role: canOpen ? 'button' : undefined,
           tabIndex: canOpen ? 0 : undefined,
-          title: canOpen ? t('step.hint') : text,
+          title: canOpen ? t('step.hint') : arg,
           onClick: toggle,
           onKeyDown: canOpen
             ? (event) => {
@@ -472,18 +453,14 @@ window.__ModuleLoader__.load({
               }
             : undefined,
         },
-          h('span', { className: 'ccp-step-time' }, formatOffset(step.at, startedAt)),
-          h('span', { className: `ccp-step-name ccp-tool-${toolKind(step.tool)}`, title: label }, label),
-          h('span', { className: 'ccp-step-detail', title: text }, text),
+          h('span', { className: `ccp-step-dot is-${status}` }),
+          h('span', { className: 'ccp-step-name', title: label }, label),
+          arg === '' ? h('span', { className: 'ccp-step-arg' }) : h('span', { className: 'ccp-step-arg', title: arg }, `(${arg})`),
           (step.added ?? 0) > 0 ? h('span', { className: 'ccp-delta is-add' }, `+${step.added}`) : null,
           (step.removed ?? 0) > 0 ? h('span', { className: 'ccp-delta is-del' }, `−${step.removed}`) : null,
-          status === 'bad' ? h('span', { className: 'ccp-step-bad' }, '✕') : status === 'live' ? h('span', { className: 'ccp-step-live' }, '·') : h('span', { className: 'ccp-step-ok' }, '✓'),
+          h('span', { className: 'ccp-step-time' }, formatOffset(step.at, startedAt)),
           canOpen ? h('span', { className: 'ccp-chev' }, open ? '▾' : '▸') : null,
         ),
-        !open && step.inputPreview ? h('div', { className: 'ccp-step-preview' }, step.inputPreview) : null,
-        !open && step.resultPreview ? h('div', {
-          className: `ccp-step-preview${step.status === 'error' ? ' is-bad' : ' is-ok'}`,
-        }, step.resultPreview) : null,
         open ? h(StepDetail, { detail, t }) : null,
       )
     }
