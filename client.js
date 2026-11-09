@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 16
+    const CLIENT_BUILD = 17
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -51,7 +51,7 @@ window.__ModuleLoader__.load({
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'delivery.done': '交付',
       'delivery.failed': '失败',
-      'changes.title': '改动 {count} 个文件',
+      'changes.title': '已编辑 {count} 个文件',
       'step.edited': '已编辑',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
@@ -96,7 +96,7 @@ window.__ModuleLoader__.load({
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'delivery.done': 'Delivered',
       'delivery.failed': 'Failed',
-      'changes.title': '{count} files changed',
+      'changes.title': 'Edited {count} files',
       'step.edited': 'Edited',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
@@ -175,12 +175,20 @@ window.__ModuleLoader__.load({
 .ccp-delivery-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--dsw-alias-state-success-primary);margin-bottom:3px}
 .ccp-delivery.is-failed .ccp-delivery-label{color:var(--dsw-alias-state-error-primary)}
 .ccp-delivery-text{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
-.ccp-changes{margin-top:10px;display:flex;flex-direction:column;gap:2px}
-.ccp-changes-label{font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-secondary);margin-bottom:2px}
-.ccp-change-row{display:flex;align-items:center;gap:6px;border:0;background:none;font:inherit;padding:2px 0;cursor:pointer;min-width:0;text-align:left;color:var(--dsw-alias-label-primary)}
-.ccp-change-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ccp-mono);font-size:11.5px;color:var(--dsw-alias-label-primary)}
-.ccp-change-row:hover .ccp-change-name{text-decoration:underline}
-.ccp-change .ccp-diff{margin:4px 0 6px;max-height:200px}
+.ccp-changes-card{margin-top:10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--ccp-accent) 10%, var(--dsw-alias-border-l1));background:color-mix(in srgb, var(--ccp-accent) 3%, var(--dsw-alias-bg-layer-1));overflow:hidden}
+.ccp-changes-head{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.ccp-changes-icon{flex:none;width:26px;height:26px;border-radius:8px;background:color-mix(in srgb, var(--ccp-accent) 14%, transparent);color:var(--ccp-accent);display:inline-flex;align-items:center;justify-content:center}
+.ccp-changes-title{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.ccp-changes-total{flex:none;display:inline-flex;gap:6px;font-family:var(--ccp-mono);font-size:11.5px}
+.ccp-changes-total .is-add{color:var(--dsw-alias-state-success-primary)}
+.ccp-changes-total .is-del{color:var(--dsw-alias-state-error-primary)}
+.ccp-change{border-top:1px solid var(--dsw-alias-border-l1)}
+.ccp-change-row{display:flex;align-items:center;gap:6px;width:100%;padding:8px 12px;border:0;background:none;font:inherit;cursor:pointer;text-align:left;min-width:0}
+.ccp-change-row:hover{background:color-mix(in srgb, var(--ccp-accent) 4%, transparent)}
+.ccp-change-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ccp-mono);font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.ccp-change-row:hover .ccp-change-name{color:var(--dsw-alias-label-primary)}
+.ccp-change-diff{margin:0 12px 10px}
+.ccp-change-diff .ccp-diff{margin:0;max-height:200px}
 .ccp-chev{flex:none;opacity:.55;font-size:9px;width:8px}
 .ccp-delta{flex:none;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;border-radius:4px;line-height:1.65}
 .ccp-delta.is-add{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent)}
@@ -562,18 +570,46 @@ window.__ModuleLoader__.load({
     function Delivery({ run, t }) {
       const failed = run.status === 'failed'
       const text = failed ? String(run.error ?? '') : String(run.resultText ?? '')
-      const changes = Array.isArray(run.changes) ? run.changes : []
-      if (text === '' && changes.length === 0) return null
+      if (text === '') return null
       return h('div', { className: `ccp-delivery${failed ? ' is-failed' : ''}` },
-        text === '' ? null : h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
-        text === '' ? null : h('div', { className: 'ccp-delivery-text' }, text),
-        changes.length === 0 ? null : h(FileChanges, { run, changes, t }),
+        h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
+        h('div', { className: 'ccp-delivery-text' }, text),
       )
     }
 
-    function FileChanges({ run, changes, t }) {
-      return h('div', { className: 'ccp-changes' },
-        h('div', { className: 'ccp-changes-label' }, t('changes.title', { count: changes.length })),
+    function CodeIcon() {
+      return h('svg', { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M9 7l-5 5 5 5M15 7l5 5-5 5', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      )
+    }
+
+    function relativePath(path, cwd) {
+      const value = String(path ?? '')
+      const root = String(cwd ?? '').replace(/[\\/]+$/u, '')
+      if (root !== '') {
+        const prefix = `${root}\\`.toLowerCase()
+        const prefixPosix = `${root}/`.toLowerCase()
+        if (value.toLowerCase().startsWith(prefix) || value.toLowerCase().startsWith(prefixPosix)) {
+          return value.slice(root.length + 1).replace(/\\/gu, '/')
+        }
+      }
+      return value.replace(/\\/gu, '/')
+    }
+
+    function FileChanges({ run, t }) {
+      const changes = Array.isArray(run.changes) ? run.changes : []
+      if (changes.length === 0) return null
+      const totalAdded = changes.reduce((sum, change) => sum + (Number(change.added) || 0), 0)
+      const totalRemoved = changes.reduce((sum, change) => sum + (Number(change.removed) || 0), 0)
+      return h('div', { className: 'ccp-changes-card' },
+        h('div', { className: 'ccp-changes-head' },
+          h('span', { className: 'ccp-changes-icon' }, h(CodeIcon)),
+          h('span', { className: 'ccp-changes-title' }, t('changes.title', { count: changes.length })),
+          h('span', { className: 'ccp-changes-total' },
+            totalAdded > 0 ? h('span', { className: 'is-add' }, `+${totalAdded}`) : null,
+            totalRemoved > 0 ? h('span', { className: 'is-del' }, `−${totalRemoved}`) : null,
+          ),
+        ),
         ...changes.map((change) => h(FileChange, { key: change.path, run, change, t })),
       )
     }
@@ -588,17 +624,17 @@ window.__ModuleLoader__.load({
           'aria-expanded': open,
           onClick: () => setOpen((value) => !value),
         },
-          h('span', { className: 'ccp-change-name', title: change.path }, basename(change.path)),
+          h('span', { className: 'ccp-change-name', title: change.path }, relativePath(change.path, run.cwd)),
           (change.added ?? 0) > 0 ? h('span', { className: 'ccp-delta is-add' }, `+${change.added}`) : null,
           (change.removed ?? 0) > 0 ? h('span', { className: 'ccp-delta is-del' }, `−${change.removed}`) : null,
           h('span', { className: 'ccp-chev' }, open ? '▾' : '▸'),
         ),
         open
           ? (diffs.loading
-              ? h('div', { className: 'ccp-detail-muted' }, t('detail.loading'))
+              ? h('div', { className: 'ccp-detail-muted ccp-change-diff' }, t('detail.loading'))
               : diffs.error !== ''
-                ? h('div', { className: 'ccp-detail-muted' }, t('error.fetch', { message: diffs.error }))
-                : h(DiffView, { diff: { lines: diffs.lines ?? [] } }))
+                ? h('div', { className: 'ccp-detail-muted ccp-change-diff' }, t('error.fetch', { message: diffs.error }))
+                : h('div', { className: 'ccp-change-diff' }, h(DiffView, { diff: { lines: diffs.lines ?? [] } })))
           : null,
       )
     }
@@ -630,6 +666,7 @@ window.__ModuleLoader__.load({
           t,
         }))),
         live ? null : h(Delivery, { run, t }),
+        live ? null : h(FileChanges, { run, t }),
       )
     }
 
