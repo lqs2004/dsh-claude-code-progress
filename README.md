@@ -26,6 +26,8 @@
 - **会话标题栏图标**：有任务在跑时变蓝并显示数量角标，悬停显示当前动作，点一下打开/聚焦面板。
 - **每个任务一张卡**：任务原文（完整换行，不截断）、状态色（运行中蓝 / 完成绿 / 失败红）、实时耗时、当前动作、TodoWrite 待办进度条、最近步骤。
 - **每个工具步骤**：两行执行结果摘要；点开后是完整「输入 / 执行结果」——Write 的完整写入内容、Edit 的 old/new、Bash 的完整命令与输出。
+- **编辑可视化**：`Edit` / `Write` / `MultiEdit` 步骤显示行级 diff——新增行绿色 `+`、删除行红色 `−`，行内还有 `+3` / `−1` 的增删计数；点开看完整改动。
+- **模型思考**：assistant 消息里的 `thinking` 块会显示在卡片中（最近一段折叠 4 行，可展开全部历史），思考进行中时标题带蓝色呼吸点。
 - **底部统计**：步数、涉及文件数、token、费用。
 - **失败可读**：provider 的 `stage/category` 诊断、进程退出码都会显示出来。
 - **自动打开**：每个会话第一次有任务运行时自动展开一次，手动关掉后本会话不再弹。
@@ -77,6 +79,7 @@ Claude Code CLI ──stdout(stream-json NDJSON)──▶ 采集器（Host 插�
 
 - **只观察 DSH 启动的 Claude Code**：在终端里手动跑的 `claude` 看不到（它不经过 `ctx.subprocess`）。
 - **依赖 provider 的 stdout 协议**：SDK 大版本升级后协议可能变化。解析是宽松的，不认识的消息会被忽略；但极端情况下可能需要同步调整。
+- **思考不是逐 token 流式**：官方 provider 没有开启 `includePartialMessages`，所以 `thinking` 块是在整段思考结束后随 assistant 消息一起到达的。要真正做到“边想边显示”，需要 fork provider 并开启该选项。
 - **没有停止按钮**：需要结束任务时用现有的中断方式。后续可以接 `subagents.interrupt`。
 - **单机内存态**：没有历史持久化，也不跨设备同步。
 
@@ -99,7 +102,7 @@ node --check index.js && node --check client.js
 
 ## English
 
-A right-sidebar plugin for DeepSeek Harness that shows live progress for Claude Code tasks delegated through `subagent_claude_code`: the current tool, every step with its result, TodoWrite progress, duration, tokens and cost.
+A right-sidebar plugin for DeepSeek Harness that shows live progress for Claude Code tasks delegated through `subagent_claude_code`: the current tool, every step with its result, TodoWrite progress, duration, tokens and cost. File edits render as a line diff (additions green, deletions red), and the model's thinking blocks are shown as they arrive.
 
 It observes the Claude Code CLI process the official provider already spawns (an extra `data` listener on its NDJSON stdout) and serves a small snapshot over a same-origin GET route. It never writes to the session log and never changes what the model sees.
 

@@ -150,6 +150,81 @@ function blocksText(content) {
   return parts.join('\n')
 }
 
+const DIFF_MAX_LINES = 300
+const DIFF_MAX_LINE_CHARS = 300
+const DIFF_CONTEXT = 3
+
+function splitLines(value) {
+  return text(value).replace(/\r\n?/gu, '\n').split('\n')
+}
+
+function diffLine(kind, value) {
+  return { t: kind, text: clip(value, DIFF_MAX_LINE_CHARS) }
+}
+
+/** Line diff for one old/new replacement: common head and tail stay as context. */
+function buildDiff(oldText, newText) {
+  const before = splitLines(oldText)
+  const after = splitLines(newText)
+  let start = 0
+  while (start < before.length && start < after.length && before[start] === after[start]) start += 1
+  let endBefore = before.length
+  let endAfter = after.length
+  while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
+    endBefore -= 1
+    endAfter -= 1
+  }
+
+  const lines = []
+  const contextStart = Math.max(0, start - DIFF_CONTEXT)
+  for (let index = contextStart; index < start; index += 1) lines.push(diffLine('ctx', before[index]))
+  for (let index = start; index < endBefore; index += 1) lines.push(diffLine('del', before[index]))
+  for (let index = start; index < endAfter; index += 1) lines.push(diffLine('add', after[index]))
+  const contextEnd = Math.min(before.length, endBefore + DIFF_CONTEXT)
+  for (let index = endBefore; index < contextEnd; index += 1) lines.push(diffLine('ctx', before[index]))
+
+  let added = endAfter - start
+  let removed = endBefore - start
+  if (lines.length > DIFF_MAX_LINES) {
+    const kept = lines.slice(0, DIFF_MAX_LINES - 1)
+    kept.push({ t: 'ctx', text: `… (${lines.length - DIFF_MAX_LINES + 1} more lines)` })
+    return { lines: kept, added, removed, truncated: true }
+  }
+  return { lines, added, removed }
+}
+
+/** A diff view for tool calls that change file content, or null for others. */
+function toolDiff(tool, input) {
+  try {
+    if (tool === 'Edit') return buildDiff(input.old_string, input.new_string)
+    if (tool === 'Write') {
+      const lines = splitLines(input.content)
+      const added = lines.length
+      const kept = lines.slice(0, DIFF_MAX_LINES).map((line) => diffLine('add', line))
+      if (lines.length > DIFF_MAX_LINES) {
+        kept.push({ t: 'ctx', text: `… (${lines.length - DIFF_MAX_LINES} more lines)` })
+      }
+      return { lines: kept, added, removed: 0 }
+    }
+    if (tool === 'MultiEdit' && Array.isArray(input.edits)) {
+      const lines = []
+      let added = 0
+      let removed = 0
+      input.edits.forEach((edit, index) => {
+        if (index > 0) lines.push({ t: 'ctx', text: `— edit ${index + 1} —` })
+        const one = buildDiff(edit?.old_string, edit?.new_string)
+        lines.push(...one.lines)
+        added += one.added
+        removed += one.removed
+      })
+      return { lines: lines.slice(0, DIFF_MAX_LINES), added, removed }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 /** The task text the SDK writes to the CLI's stdin, when it is recognizable. */
 function extractPrompt(buffered) {
   const lines = buffered.split('\n')
@@ -235,6 +310,9 @@ export function apply(ctx) {
       toolCounts: new Map(),
       files: new Set(),
       todos: [],
+      thoughts: [],
+      lastThought: '',
+      liveThought: '',
       usage: null,
       costUsd: null,
       resultText: '',
@@ -253,19 +331,29 @@ export function apply(ctx) {
   function dropDetail(run, seq) {
     const entry = run.details.get(seq)
     if (entry === undefined) return
-    run.detailBytes -= (entry.input?.length ?? 0) + (entry.result?.length ?? 0)
+    run.detailBytes -= detailSize(entry.input) + detailSize(entry.result) + detailSize(entry.diff)
     run.details.delete(seq)
     const at = run.detailSeqs.indexOf(seq)
     if (at >= 0) run.detailSeqs.splice(at, 1)
   }
 
+  function detailSize(value) {
+    if (typeof value === 'string') return value.length
+    if (value === null || value === undefined) return 0
+    try {
+      return JSON.stringify(value).length
+    } catch {
+      return 0
+    }
+  }
+
   function addDetail(run, seq, field, value) {
-    const clipped = clip(value, DETAIL_FIELD_MAX)
-    const current = run.details.get(seq) ?? { input: '', result: '' }
-    const previous = current[field] ?? ''
-    current[field] = clipped
+    const stored = field === 'diff' ? value : clip(value, DETAIL_FIELD_MAX)
+    const current = run.details.get(seq) ?? { input: '', result: '', diff: null }
+    const before = detailSize(current[field])
+    current[field] = stored
     run.details.set(seq, current)
-    run.detailBytes += clipped.length - previous.length
+    run.detailBytes += detailSize(stored) - before
     if (!run.detailSeqs.includes(seq)) run.detailSeqs.push(seq)
     while (run.detailBytes > DETAIL_BUDGET && run.detailSeqs.length > 0) {
       dropDetail(run, run.detailSeqs[0])
@@ -296,6 +384,12 @@ export function apply(ctx) {
     })
     addDetail(run, step.seq, 'input', formatToolInput(tool, input))
     if (tool === 'Write') step.inputPreview = oneLine(text(input.content), 120)
+    const diff = toolDiff(tool, input)
+    if (diff !== null && diff.lines.length > 0) {
+      step.added = diff.added
+      step.removed = diff.removed
+      addDetail(run, step.seq, 'diff', diff)
+    }
     run.stepCount += 1
     run.toolCounts.set(tool, (run.toolCounts.get(tool) ?? 0) + 1)
     const path = touchedPath(tool, input)
@@ -310,7 +404,21 @@ export function apply(ctx) {
     run.status = 'running'
   }
 
+  function pushThought(run, value) {
+    const content = text(value)
+    if (content.trim() === '') return
+    run.thoughts.push({ at: Date.now(), text: clip(content, 4000) })
+    if (run.thoughts.length > 12) run.thoughts.shift()
+    run.lastThought = oneLine(content, 200)
+    run.phase = 'thinking'
+    if (run.status === 'starting') run.status = 'running'
+  }
+
   function handleAssistant(run, message) {
+    if (run.liveThought !== '') {
+      pushThought(run, run.liveThought)
+      run.liveThought = ''
+    }
     const content = message?.message?.content
     const blocks = Array.isArray(content) ? content : []
     let said = ''
@@ -324,13 +432,32 @@ export function apply(ctx) {
       } else if (block.type === 'tool_use') {
         handleToolUse(run, block)
       } else if (block.type === 'thinking') {
-        if (run.phase === 'starting') run.phase = 'thinking'
+        pushThought(run, block.thinking ?? block.text ?? '')
       }
     }
     if (said !== '') run.lastText = oneLine(said, 240)
     if (run.status === 'starting') {
       run.status = 'running'
-      run.phase = 'thinking'
+      run.phase = run.phase === 'starting' ? 'thinking' : run.phase
+    }
+  }
+
+  /** Partial frames only arrive when the provider enables them; keep the path ready. */
+  function handleStreamEvent(run, message) {
+    const event = message.event
+    if (!event || typeof event !== 'object') return
+    if (event.type === 'content_block_delta' && event.delta?.type === 'thinking_delta') {
+      const delta = text(event.delta.thinking)
+      if (delta !== '') {
+        run.liveThought = clip(run.liveThought + delta, 4000)
+        run.phase = 'thinking'
+        if (run.status === 'starting') run.status = 'running'
+      }
+      return
+    }
+    if (event.type === 'message_stop' && run.liveThought !== '') {
+      pushThought(run, run.liveThought)
+      run.liveThought = ''
     }
   }
 
@@ -404,6 +531,9 @@ export function apply(ctx) {
         return
       case 'result':
         handleResult(run, message)
+        return
+      case 'stream_event':
+        handleStreamEvent(run, message)
         return
       default:
         return
@@ -514,6 +644,8 @@ export function apply(ctx) {
       durationMs: endedAt === null ? Date.now() - run.startedAt : Math.max(0, endedAt - run.startedAt),
       lastAction: run.lastAction,
       lastText: run.lastText,
+      lastThought: run.lastThought,
+      thoughts: run.thoughts.slice(-4),
       stepCount: run.stepCount,
       toolCounts: [...run.toolCounts.entries()].map(([tool, count]) => ({ tool, count })),
       files: [...run.files].slice(-40),
@@ -661,7 +793,7 @@ export function apply(ctx) {
           sendJson(response, 404, { ok: false, error: 'unknown step' })
           return
         }
-        const detail = run.details.get(step.seq) ?? { input: '', result: '' }
+        const detail = run.details.get(step.seq) ?? { input: '', result: '', diff: null }
         sendJson(response, 200, {
           ok: true,
           tool: step.tool ?? '',
@@ -670,6 +802,7 @@ export function apply(ctx) {
           durationMs: step.durationMs ?? null,
           input: detail.input ?? '',
           result: detail.result ?? '',
+          diff: detail.diff ?? null,
         })
       } catch (error) {
         try {

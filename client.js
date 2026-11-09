@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 4
+    const CLIENT_BUILD = 5
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -40,8 +40,11 @@ window.__ModuleLoader__.load({
       'detail.less': '收起',
       'detail.input': '输入',
       'detail.result': '执行结果',
+      'detail.diff': '改动',
       'detail.empty': '（空）',
       'detail.loading': '读取中…',
+      'thought.title': '思考',
+      'thought.expand': '查看全部',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
       'error.tap': '进度采集没有挂上：{message}',
@@ -74,8 +77,11 @@ window.__ModuleLoader__.load({
       'detail.less': 'Collapse',
       'detail.input': 'Input',
       'detail.result': 'Result',
+      'detail.diff': 'Changes',
       'detail.empty': '(empty)',
       'detail.loading': 'Loading…',
+      'thought.title': 'Thinking',
+      'thought.expand': 'Show all',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
       'error.tap': 'Progress capture is not attached: {message}',
@@ -119,6 +125,14 @@ window.__ModuleLoader__.load({
 .ccp-todo.is-done .ccp-todo-text{text-decoration:line-through;opacity:.6}
 .ccp-todo.is-active{color:var(--dsw-alias-label-primary)}
 .ccp-todo.is-active .ccp-todo-mark{color:var(--dsw-alias-brand-primary)}
+.ccp-thoughts{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1)}
+.ccp-thought-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em}
+.ccp-thought-title.is-live{color:var(--dsw-alias-brand-primary)}
+.ccp-thought-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
+.ccp-thought-title.is-live .ccp-thought-dot{animation:ccp-pulse 1.4s ease-in-out infinite}
+.ccp-thought{font-size:10.5px;line-height:1.55;color:var(--dsw-alias-label-secondary);white-space:pre-wrap;word-break:break-word}
+.ccp-thought.is-clamped{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .ccp-steps{display:flex;flex-direction:column;gap:2px}
 .ccp-step{display:flex;flex-direction:column;gap:2px;min-width:0;border-radius:7px}
 .ccp-step.is-openable{cursor:pointer}
@@ -137,6 +151,16 @@ window.__ModuleLoader__.load({
 .ccp-step-preview{margin:0 3px 2px 41px;padding:2px 7px;border-radius:0 6px 6px 0;border-left:2px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:1.45;color:var(--dsw-alias-label-primary);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;white-space:pre-wrap}
 .ccp-step-preview.is-ok{border-left-color:var(--dsw-alias-state-success-primary)}
 .ccp-step-preview.is-bad{border-left-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
+.ccp-delta{flex:none;font-size:9.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;border-radius:4px;line-height:1.6}
+.ccp-delta.is-add{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent)}
+.ccp-delta.is-del{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 16%, transparent)}
+.ccp-diff{margin:0 0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:6px;overflow:auto;max-height:260px;background:var(--dsw-alias-bg-base)}
+.ccp-diff-line{display:flex;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;padding:0 6px}
+.ccp-diff-line.is-add{background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);color:var(--dsw-alias-state-success-primary)}
+.ccp-diff-line.is-del{background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);color:var(--dsw-alias-state-error-primary)}
+.ccp-diff-line.is-ctx{color:var(--dsw-alias-label-secondary);opacity:.75}
+.ccp-diff-sign{flex:none;width:9px;text-align:center;font-weight:700;opacity:.9}
+.ccp-diff-text{flex:1;min-width:0}
 .ccp-detail{margin:2px 3px 6px 41px;padding:7px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1);min-width:0}
 .ccp-detail-label{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-label-secondary);margin:0 0 3px;font-weight:600}
 .ccp-detail-label.is-input{color:var(--dsw-alias-brand-primary)}
@@ -350,6 +374,16 @@ window.__ModuleLoader__.load({
       return state
     }
 
+    function DiffView({ diff }) {
+      return h('div', { className: 'ccp-diff' }, ...diff.lines.map((line, index) => h('div', {
+        key: `${index}-${line.t}`,
+        className: `ccp-diff-line is-${line.t}`,
+      },
+        h('span', { className: 'ccp-diff-sign' }, line.t === 'add' ? '+' : line.t === 'del' ? '−' : ' '),
+        h('span', { className: 'ccp-diff-text' }, line.text === '' ? ' ' : line.text),
+      )))
+    }
+
     function StepDetail({ detail, t }) {
       if (detail.loading) return h('div', { className: 'ccp-detail' }, h('div', { className: 'ccp-detail-muted' }, t('detail.loading')))
       if (detail.error !== '') {
@@ -358,6 +392,15 @@ window.__ModuleLoader__.load({
       const data = detail.data ?? {}
       const input = String(data.input ?? '')
       const result = String(data.result ?? '')
+      const diff = data.diff
+      if (diff !== null && diff !== undefined && Array.isArray(diff.lines) && diff.lines.length > 0) {
+        return h('div', { className: 'ccp-detail' },
+          h('div', { className: 'ccp-detail-label is-input' }, t('detail.diff')),
+          h(DiffView, { diff }),
+          h('div', { className: 'ccp-detail-label is-result' }, t('detail.result')),
+          h('pre', { className: 'ccp-pre' }, result === '' ? t('detail.empty') : result),
+        )
+      }
       return h('div', { className: 'ccp-detail' },
         h('div', { className: 'ccp-detail-label is-input' }, t('detail.input')),
         h('pre', { className: 'ccp-pre' }, input === '' ? t('detail.empty') : input),
@@ -396,6 +439,8 @@ window.__ModuleLoader__.load({
           h('span', { className: 'ccp-step-time' }, formatOffset(step.at, startedAt)),
           h('span', { className: `ccp-step-name ccp-tool-${toolKind(step.tool)}`, title: label }, label),
           h('span', { className: 'ccp-step-detail', title: text }, text),
+          (step.added ?? 0) > 0 ? h('span', { className: 'ccp-delta is-add' }, `+${step.added}`) : null,
+          (step.removed ?? 0) > 0 ? h('span', { className: 'ccp-delta is-del' }, `−${step.removed}`) : null,
           status === 'bad' ? h('span', { className: 'ccp-step-bad' }, '✕') : status === 'live' ? h('span', { className: 'ccp-step-live' }, '·') : h('span', { className: 'ccp-step-ok' }, '✓'),
           canOpen ? h('span', { className: 'ccp-chev' }, open ? '▾' : '▸') : null,
         ),
@@ -404,6 +449,32 @@ window.__ModuleLoader__.load({
           className: `ccp-step-preview${step.status === 'error' ? ' is-bad' : ' is-ok'}`,
         }, step.resultPreview) : null,
         open ? h(StepDetail, { detail, t }) : null,
+      )
+    }
+
+    function Thoughts({ run, t }) {
+      const thoughts = Array.isArray(run.thoughts) ? run.thoughts : []
+      const [expanded, setExpanded] = useState(false)
+      if (thoughts.length === 0) return null
+      const live = run.status === 'running' && run.phase === 'thinking'
+      const shown = expanded ? thoughts : thoughts.slice(-1)
+      return h('div', { className: 'ccp-thoughts' },
+        h('div', { className: 'ccp-thought-head' },
+          h('span', { className: `ccp-thought-title${live ? ' is-live' : ''}` },
+            h('span', { className: 'ccp-thought-dot' }),
+            `${t('thought.title')} · ${thoughts.length}`),
+          thoughts.length > 1
+            ? h('button', {
+                type: 'button',
+                className: 'ccp-more',
+                onClick: () => setExpanded((value) => !value),
+              }, expanded ? t('detail.less') : t('thought.expand'))
+            : null,
+        ),
+        ...shown.map((thought, index) => h('div', {
+          key: `${thought.at}-${index}`,
+          className: `ccp-thought${expanded ? '' : ' is-clamped'}`,
+        }, thought.text)),
       )
     }
 
@@ -437,6 +508,7 @@ window.__ModuleLoader__.load({
           className: `ccp-current${run.status === 'failed' ? ' is-error' : run.status === 'done' ? ' is-done' : ''}`,
           title: current,
         }, current),
+        h(Thoughts, { run, t }),
         h(TodoList, { run, t }),
         shown.length === 0 ? null : h('div', { className: 'ccp-steps' }, ...shown.map((step, index) => h(Step, {
           key: `${index}-${step.seq ?? step.at}`,
