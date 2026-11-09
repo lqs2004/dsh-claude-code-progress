@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 9
+    const CLIENT_BUILD = 10
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -37,6 +37,10 @@ window.__ModuleLoader__.load({
       'stats.tokens': '{count} tok',
       'stats.cost': '${cost}',
       'stats.tasks': '{count} 个任务',
+      'metric.steps': '步数',
+      'metric.files': '文件',
+      'metric.cost': '花费',
+      'metric.tasks': '任务',
       'detail.more': '展开其余 {count} 步',
       'detail.less': '收起',
       'detail.input': '输入',
@@ -76,6 +80,10 @@ window.__ModuleLoader__.load({
       'stats.tokens': '{count} tok',
       'stats.cost': '${cost}',
       'stats.tasks': '{count} tasks',
+      'metric.steps': 'Steps',
+      'metric.files': 'Files',
+      'metric.cost': 'Cost',
+      'metric.tasks': 'Tasks',
       'detail.more': '{count} more steps',
       'detail.less': 'Collapse',
       'detail.input': 'Input',
@@ -102,8 +110,11 @@ window.__ModuleLoader__.load({
     const css = `
 .ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:hidden;padding:10px 10px 6px;display:flex;flex-direction:column;gap:0;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
 .ccp-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
-.ccp-statusbar{flex:none;display:flex;align-items:center;gap:7px;margin-top:6px;padding:7px 2px 2px;border-top:.5px solid var(--dsw-alias-border-l1);font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;min-width:0}
-.ccp-status-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccp-statusbar{flex:none;display:flex;align-items:stretch;margin-top:8px;padding:8px 4px 6px;border-top:.5px solid var(--dsw-alias-border-l1);border-radius:10px;background:color-mix(in srgb, var(--ccp-accent) 5%, var(--dsw-alias-bg-layer-1))}
+.ccp-metric{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px}
+.ccp-metric + .ccp-metric{border-left:.5px solid var(--dsw-alias-border-l1)}
+.ccp-metric-value{font-size:15px;font-weight:600;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;line-height:1.25}
+.ccp-metric-label{font-size:10px;color:var(--dsw-alias-label-secondary);letter-spacing:.03em}
 .ccp-summary{display:flex;align-items:center;gap:12px;padding:2px 2px 0;color:var(--dsw-alias-label-secondary);font-size:11px}
 .ccp-brand{display:inline-flex;align-items:center;gap:6px;font-family:var(--ccp-serif);font-size:12px;color:var(--dsw-alias-label-secondary);letter-spacing:.01em}
 .ccp-brand .ccp-spark{color:var(--ccp-accent)}
@@ -137,11 +148,13 @@ window.__ModuleLoader__.load({
 .ccp-todo.is-active .ccp-todo-mark{color:var(--ccp-accent)}
 .ccp-thoughts{display:flex;flex-direction:column;gap:4px;padding:2px 0 2px 10px;border-left:2px solid color-mix(in srgb, var(--ccp-accent) 30%, transparent);background:transparent;border-radius:0}
 .ccp-thought-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em}
+.ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em;border:0;background:none;padding:0;font-family:inherit;cursor:pointer}
+.ccp-thought-title:hover{color:var(--dsw-alias-label-primary)}
 .ccp-thought-title.is-live{color:var(--ccp-accent)}
 .ccp-thought-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
 .ccp-thought-title.is-live .ccp-thought-dot{animation:ccp-pulse 1.4s ease-in-out infinite}
 .ccp-thought{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);opacity:.92;white-space:pre-wrap;word-break:break-word}
+.ccp-thought.is-clamped{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;opacity:.8}
 .ccp-steps{display:flex;flex-direction:column;gap:2px}
 .ccp-step{display:flex;flex-direction:column;gap:2px;min-width:0;border-radius:7px}
 .ccp-step.is-openable{cursor:pointer}
@@ -478,18 +491,29 @@ window.__ModuleLoader__.load({
 
     function Thoughts({ run, t }) {
       const thoughts = Array.isArray(run.thoughts) ? run.thoughts : []
+      const [expanded, setExpanded] = useState(() => run.status === 'running' || run.status === 'starting')
       if (thoughts.length === 0) return null
       const live = run.status === 'running' && run.phase === 'thinking'
+      const latest = thoughts[thoughts.length - 1]
       return h('div', { className: 'ccp-thoughts' },
         h('div', { className: 'ccp-thought-head' },
-          h('span', { className: `ccp-thought-title${live ? ' is-live' : ''}` },
+          h('button', {
+            type: 'button',
+            className: `ccp-thought-title${live ? ' is-live' : ''}`,
+            'aria-expanded': expanded,
+            onClick: () => setExpanded((value) => !value),
+          },
             h('span', { className: 'ccp-thought-dot' }),
-            `${t('thought.title')} · ${thoughts.length}`),
+            `${t('thought.title')} · ${thoughts.length}`,
+            h('span', { className: 'ccp-chev' }, expanded ? '▾' : '▸'),
+          ),
         ),
-        ...thoughts.map((thought, index) => h('div', {
-          key: `${thought.at}-${index}`,
-          className: 'ccp-thought',
-        }, thought.text)),
+        expanded
+          ? thoughts.map((thought, index) => h('div', {
+              key: `${thought.at}-${index}`,
+              className: 'ccp-thought',
+            }, thought.text))
+          : h('div', { className: 'ccp-thought is-clamped' }, latest.text),
       )
     }
 
@@ -630,25 +654,15 @@ window.__ModuleLoader__.load({
         const finished = runs.length - activeCount
         const tapProblem = meta !== null && typeof meta.tapError === 'string' && meta.tapError !== ''
 
-        const statusParts = []
-        if (activeRun !== undefined) {
-          statusParts.push(translate('stats.steps', { count: activeRun.stepCount ?? (activeRun.steps?.length ?? 0) }))
-          if ((activeRun.fileCount ?? 0) > 0) statusParts.push(translate('stats.files', { count: activeRun.fileCount }))
-          const usage = activeRun.usage
-          const tokens = usage === null || usage === undefined ? 0 : (Number(usage.inputTokens) || 0) + (Number(usage.outputTokens) || 0)
-          if (tokens > 0) statusParts.push(translate('stats.tokens', { count: formatTokens(tokens) }))
-          if ((activeRun.costUsd ?? 0) > 0) statusParts.push(translate('stats.cost', { cost: activeRun.costUsd.toFixed(2) }))
-          statusParts.push(formatDuration(Math.max(0, now - activeRun.startedAt), translate))
-        } else if (runs.length > 0) {
-          const totals = runs.reduce((acc, run) => {
-            acc.steps += Number(run.stepCount) || 0
-            acc.cost += Number(run.costUsd) || 0
-            return acc
-          }, { steps: 0, cost: 0 })
-          statusParts.push(translate('stats.tasks', { count: runs.length }))
-          statusParts.push(translate('stats.steps', { count: totals.steps }))
-          if (totals.cost > 0) statusParts.push(translate('stats.cost', { cost: totals.cost.toFixed(2) }))
-        }
+        const totals = runs.reduce((acc, run) => {
+          acc.steps += Number(run.stepCount) || 0
+          acc.files += Number(run.fileCount) || 0
+          acc.cost += Number(run.costUsd) || 0
+          return acc
+        }, { steps: 0, files: 0, cost: 0 })
+        const stepsValue = activeRun !== undefined ? (activeRun.stepCount ?? (activeRun.steps?.length ?? 0)) : totals.steps
+        const filesValue = activeRun !== undefined ? (Number(activeRun.fileCount) || 0) : totals.files
+        const costValue = activeRun !== undefined ? (Number(activeRun.costUsd) || 0) : totals.cost
 
         return h('div', { className: 'ccp-root' },
           h('style', null, css),
@@ -674,9 +688,23 @@ window.__ModuleLoader__.load({
             ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
             loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
           ),
-          statusParts.length > 0 ? h('div', { className: 'ccp-statusbar' },
-            activeRun !== undefined ? h('span', { className: 'ccp-dot is-running' }) : null,
-            h('span', { className: 'ccp-status-text' }, statusParts.join('  ·  ')),
+          runs.length > 0 ? h('div', { className: 'ccp-statusbar' },
+            h('div', { className: 'ccp-metric' },
+              h('span', { className: 'ccp-metric-value' }, stepsValue),
+              h('span', { className: 'ccp-metric-label' }, translate('metric.steps')),
+            ),
+            h('div', { className: 'ccp-metric' },
+              h('span', { className: 'ccp-metric-value' }, filesValue),
+              h('span', { className: 'ccp-metric-label' }, translate('metric.files')),
+            ),
+            h('div', { className: 'ccp-metric' },
+              h('span', { className: 'ccp-metric-value' }, costValue > 0 ? `$${costValue.toFixed(2)}` : '$0'),
+              h('span', { className: 'ccp-metric-label' }, translate('metric.cost')),
+            ),
+            h('div', { className: 'ccp-metric' },
+              h('span', { className: 'ccp-metric-value' }, runs.length),
+              h('span', { className: 'ccp-metric-label' }, translate('metric.tasks')),
+            ),
           ) : null,
         )
       }
