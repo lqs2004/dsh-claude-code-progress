@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 8
+    const CLIENT_BUILD = 9
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -36,6 +36,7 @@ window.__ModuleLoader__.load({
       'stats.files': '{count} 个文件',
       'stats.tokens': '{count} tok',
       'stats.cost': '${cost}',
+      'stats.tasks': '{count} 个任务',
       'detail.more': '展开其余 {count} 步',
       'detail.less': '收起',
       'detail.input': '输入',
@@ -74,6 +75,7 @@ window.__ModuleLoader__.load({
       'stats.files': '{count} files',
       'stats.tokens': '{count} tok',
       'stats.cost': '${cost}',
+      'stats.tasks': '{count} tasks',
       'detail.more': '{count} more steps',
       'detail.less': 'Collapse',
       'detail.input': 'Input',
@@ -98,7 +100,10 @@ window.__ModuleLoader__.load({
     const autoOpened = new Set()
 
     const css = `
-.ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:6px;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
+.ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:hidden;padding:10px 10px 6px;display:flex;flex-direction:column;gap:0;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
+.ccp-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.ccp-statusbar{flex:none;display:flex;align-items:center;gap:7px;margin-top:6px;padding:7px 2px 2px;border-top:.5px solid var(--dsw-alias-border-l1);font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;min-width:0}
+.ccp-status-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ccp-summary{display:flex;align-items:center;gap:12px;padding:2px 2px 0;color:var(--dsw-alias-label-secondary);font-size:11px}
 .ccp-brand{display:inline-flex;align-items:center;gap:6px;font-family:var(--ccp-serif);font-size:12px;color:var(--dsw-alias-label-secondary);letter-spacing:.01em}
 .ccp-brand .ccp-spark{color:var(--ccp-accent)}
@@ -137,7 +142,6 @@ window.__ModuleLoader__.load({
 .ccp-thought-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
 .ccp-thought-title.is-live .ccp-thought-dot{animation:ccp-pulse 1.4s ease-in-out infinite}
 .ccp-thought{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);opacity:.92;white-space:pre-wrap;word-break:break-word}
-.ccp-thought.is-clamped{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .ccp-steps{display:flex;flex-direction:column;gap:2px}
 .ccp-step{display:flex;flex-direction:column;gap:2px;min-width:0;border-radius:7px}
 .ccp-step.is-openable{cursor:pointer}
@@ -173,15 +177,10 @@ window.__ModuleLoader__.load({
 .ccp-detail-muted{font-size:11.5px;color:var(--dsw-alias-label-secondary)}
 .ccp-pre{margin:0 0 7px;padding:6px 7px;border-radius:8px;background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l2);font-family:var(--ccp-mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;color:var(--dsw-alias-label-primary)}
 .ccp-pre:last-child{margin-bottom:0}
-.ccp-more{border:0;background:none;color:var(--ccp-accent-strong);font:inherit;font-size:11.5px;padding:0;cursor:pointer;text-align:left}
-.ccp-more:hover{text-decoration:underline}
-.ccp-foot{display:flex;flex-wrap:wrap;gap:4px 6px;color:var(--dsw-alias-label-secondary);font-size:11.5px;border-top:.5px solid var(--dsw-alias-border-l1);padding-top:7px}
-.ccp-stat{background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1);border-radius:999px;padding:1px 7px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
 .ccp-empty{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:40px 18px 24px;text-align:center;color:var(--dsw-alias-label-secondary);box-sizing:border-box}
 .ccp-empty-title{font-family:var(--ccp-serif);color:var(--dsw-alias-label-primary);font-size:15px;font-weight:500}
 .ccp-empty-hint{font-size:12px;line-height:1.65;max-width:280px}
 .ccp-empty-art{width:46px;height:46px;color:var(--ccp-accent);opacity:.9;margin-bottom:2px}
-.ccp-end{padding:8px 2px 2px;font-size:11px;color:var(--dsw-alias-label-secondary);opacity:.7;border-top:.5px solid var(--dsw-alias-border-l1)}
 .ccp-error{margin:4px 2px;padding:8px 10px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary);font-size:11.5px;word-break:break-word}
 .ccp-error button{margin-top:6px;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0}
 .ccp-chip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;padding:0;flex:none}
@@ -479,49 +478,29 @@ window.__ModuleLoader__.load({
 
     function Thoughts({ run, t }) {
       const thoughts = Array.isArray(run.thoughts) ? run.thoughts : []
-      const [expanded, setExpanded] = useState(false)
       if (thoughts.length === 0) return null
       const live = run.status === 'running' && run.phase === 'thinking'
-      const shown = expanded ? thoughts : thoughts.slice(-1)
       return h('div', { className: 'ccp-thoughts' },
         h('div', { className: 'ccp-thought-head' },
           h('span', { className: `ccp-thought-title${live ? ' is-live' : ''}` },
             h('span', { className: 'ccp-thought-dot' }),
             `${t('thought.title')} · ${thoughts.length}`),
-          thoughts.length > 1
-            ? h('button', {
-                type: 'button',
-                className: 'ccp-more',
-                onClick: () => setExpanded((value) => !value),
-              }, expanded ? t('detail.less') : t('thought.expand'))
-            : null,
         ),
-        ...shown.map((thought, index) => h('div', {
+        ...thoughts.map((thought, index) => h('div', {
           key: `${thought.at}-${index}`,
-          className: `ccp-thought${expanded ? '' : ' is-clamped'}`,
+          className: 'ccp-thought',
         }, thought.text)),
       )
     }
 
     function RunCard({ run, now, t }) {
-      const [expanded, setExpanded] = useState(false)
       const live = run.status === 'running' || run.status === 'starting'
       const steps = Array.isArray(run.steps) ? run.steps : []
-      const visibleCount = expanded ? steps.length : 3
-      const shown = steps.slice(-visibleCount)
-      const hiddenCount = steps.length - shown.length
       const duration = live ? Math.max(0, now - run.startedAt) : run.durationMs
-      const usage = run.usage
-      const tokens = usage === null || usage === undefined ? 0 : (Number(usage.inputTokens) || 0) + (Number(usage.outputTokens) || 0)
       const phaseText = run.status === 'starting' ? t('phase.starting') : run.phase === 'thinking' ? t('phase.thinking') : run.phase === 'tool' ? t('phase.tool') : ''
       const current = live
         ? (run.lastAction !== '' ? run.lastAction : phaseText)
         : (run.status === 'failed' ? (run.error !== '' ? run.error : t('phase.failed')) : (run.resultText !== '' ? run.resultText : t('phase.done')))
-      const chips = []
-      chips.push(t('stats.steps', { count: run.stepCount ?? steps.length }))
-      if ((run.fileCount ?? 0) > 0) chips.push(t('stats.files', { count: run.fileCount }))
-      if (tokens > 0) chips.push(t('stats.tokens', { count: formatTokens(tokens) }))
-      if (typeof run.costUsd === 'number' && run.costUsd > 0) chips.push(t('stats.cost', { cost: run.costUsd.toFixed(2) }))
 
       return h('div', { className: `ccp-card${live ? ' is-live' : run.status === 'failed' ? ' is-failed' : ' is-done'}` },
         h('div', { className: 'ccp-card-head' },
@@ -535,19 +514,13 @@ window.__ModuleLoader__.load({
         }, current),
         h(Thoughts, { run, t }),
         h(TodoList, { run, t }),
-        shown.length === 0 ? null : h('div', { className: 'ccp-steps' }, ...shown.map((step, index) => h(Step, {
+        steps.length === 0 ? null : h('div', { className: 'ccp-steps' }, ...steps.map((step, index) => h(Step, {
           key: `${index}-${step.seq ?? step.at}`,
           run,
           step,
           startedAt: run.startedAt,
           t,
         }))),
-        hiddenCount > 0 || expanded ? h('button', {
-          type: 'button',
-          className: 'ccp-more',
-          onClick: () => setExpanded((value) => !value),
-        }, expanded ? t('detail.less') : t('detail.more', { count: hiddenCount })) : null,
-        h('div', { className: 'ccp-foot' }, ...chips.map((chip) => h('span', { key: chip, className: 'ccp-stat' }, chip))),
       )
     }
 
@@ -650,35 +623,61 @@ window.__ModuleLoader__.load({
           }
         }
         const { runs, loading, error, meta } = useRuns(sessionId, visible, 1000, 'panel')
-        const live = runs.some((run) => run.status === 'running' || run.status === 'starting')
+        const activeRun = runs.find((run) => run.status === 'running' || run.status === 'starting')
+        const live = activeRun !== undefined
         const now = useNow(live)
         const activeCount = runs.filter((run) => run.status === 'running' || run.status === 'starting').length
         const finished = runs.length - activeCount
         const tapProblem = meta !== null && typeof meta.tapError === 'string' && meta.tapError !== ''
 
+        const statusParts = []
+        if (activeRun !== undefined) {
+          statusParts.push(translate('stats.steps', { count: activeRun.stepCount ?? (activeRun.steps?.length ?? 0) }))
+          if ((activeRun.fileCount ?? 0) > 0) statusParts.push(translate('stats.files', { count: activeRun.fileCount }))
+          const usage = activeRun.usage
+          const tokens = usage === null || usage === undefined ? 0 : (Number(usage.inputTokens) || 0) + (Number(usage.outputTokens) || 0)
+          if (tokens > 0) statusParts.push(translate('stats.tokens', { count: formatTokens(tokens) }))
+          if ((activeRun.costUsd ?? 0) > 0) statusParts.push(translate('stats.cost', { cost: activeRun.costUsd.toFixed(2) }))
+          statusParts.push(formatDuration(Math.max(0, now - activeRun.startedAt), translate))
+        } else if (runs.length > 0) {
+          const totals = runs.reduce((acc, run) => {
+            acc.steps += Number(run.stepCount) || 0
+            acc.cost += Number(run.costUsd) || 0
+            return acc
+          }, { steps: 0, cost: 0 })
+          statusParts.push(translate('stats.tasks', { count: runs.length }))
+          statusParts.push(translate('stats.steps', { count: totals.steps }))
+          if (totals.cost > 0) statusParts.push(translate('stats.cost', { cost: totals.cost.toFixed(2) }))
+        }
+
         return h('div', { className: 'ccp-root' },
           h('style', null, css),
-          runs.length === 0 ? (error === '' ? h(EmptyState, { t: translate }) : null) : h('div', { className: 'ccp-summary' },
-            h('span', { className: 'ccp-brand' }, h(Spark, null), 'Claude Code'),
-            h('span', { className: 'ccp-summary-count' },
-              activeCount > 0
-                ? h('span', { className: 'ccp-summary-live' },
-                    h('span', { className: 'ccp-dot is-running' }),
-                    translate('summary.running', { count: activeCount }))
-                : null,
-              finished > 0 ? h('span', null, translate('summary.done', { count: finished })) : null,
-            ),
-          ),
-          tapProblem ? h('div', { className: 'ccp-error' }, translate('error.tap', { message: meta.tapError })) : null,
-          error === ''
-            ? null
-            : h('div', { className: 'ccp-error' },
-                translate('error.fetch', { message: error }),
-                h('div', null, h('button', { type: 'button', onClick: () => window.location.reload() }, translate('retry'))),
+          h('div', { className: 'ccp-scroll' },
+            runs.length === 0 ? (error === '' ? h(EmptyState, { t: translate }) : null) : h('div', { className: 'ccp-summary' },
+              h('span', { className: 'ccp-brand' }, h(Spark, null), 'Claude Code'),
+              h('span', { className: 'ccp-summary-count' },
+                activeCount > 0
+                  ? h('span', { className: 'ccp-summary-live' },
+                      h('span', { className: 'ccp-dot is-running' }),
+                      translate('summary.running', { count: activeCount }))
+                  : null,
+                finished > 0 ? h('span', null, translate('summary.done', { count: finished })) : null,
               ),
-          ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
-          runs.length > 0 ? h('div', { className: 'ccp-end' }, translate('panel.hint')) : null,
-          loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
+            ),
+            tapProblem ? h('div', { className: 'ccp-error' }, translate('error.tap', { message: meta.tapError })) : null,
+            error === ''
+              ? null
+              : h('div', { className: 'ccp-error' },
+                  translate('error.fetch', { message: error }),
+                  h('div', null, h('button', { type: 'button', onClick: () => window.location.reload() }, translate('retry'))),
+                ),
+            ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
+            loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
+          ),
+          statusParts.length > 0 ? h('div', { className: 'ccp-statusbar' },
+            activeRun !== undefined ? h('span', { className: 'ccp-dot is-running' }) : null,
+            h('span', { className: 'ccp-status-text' }, statusParts.join('  ·  ')),
+          ) : null,
         )
       }
 
