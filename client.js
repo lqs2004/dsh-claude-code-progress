@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 7
+    const CLIENT_BUILD = 8
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -45,6 +45,7 @@ window.__ModuleLoader__.load({
       'detail.loading': '读取中…',
       'thought.title': '思考',
       'thought.expand': '查看全部',
+      'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
       'error.tap': '进度采集没有挂上：{message}',
@@ -82,6 +83,7 @@ window.__ModuleLoader__.load({
       'detail.loading': 'Loading…',
       'thought.title': 'Thinking',
       'thought.expand': 'Show all',
+      'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
       'error.tap': 'Progress capture is not attached: {message}',
@@ -96,7 +98,7 @@ window.__ModuleLoader__.load({
     const autoOpened = new Set()
 
     const css = `
-.ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
+.ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:6px;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
 .ccp-summary{display:flex;align-items:center;gap:12px;padding:2px 2px 0;color:var(--dsw-alias-label-secondary);font-size:11px}
 .ccp-brand{display:inline-flex;align-items:center;gap:6px;font-family:var(--ccp-serif);font-size:12px;color:var(--dsw-alias-label-secondary);letter-spacing:.01em}
 .ccp-brand .ccp-spark{color:var(--ccp-accent)}
@@ -107,10 +109,10 @@ window.__ModuleLoader__.load({
 .ccp-dot.is-done{background:var(--dsw-alias-state-success-primary)}
 .ccp-dot.is-failed{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-error-primary) 22%, transparent)}
 @keyframes ccp-pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.ccp-card{background:var(--dsw-alias-bg-layer-1);background:color-mix(in srgb, var(--ccp-accent) 3%, var(--dsw-alias-bg-layer-1));border:1px solid var(--dsw-alias-border-l1);border-color:color-mix(in srgb, var(--ccp-accent) 10%, var(--dsw-alias-border-l1));border-left:3px solid var(--dsw-alias-state-idle-primary);border-radius:14px;padding:11px 12px 10px;display:flex;flex-direction:column;gap:7px;box-shadow:0 2px 6px rgba(60,40,30,.06)}
-.ccp-card.is-live{border-left-color:var(--ccp-accent);background:color-mix(in srgb, var(--ccp-accent) 6%, var(--dsw-alias-bg-layer-1))}
-.ccp-card.is-done{border-left-color:var(--dsw-alias-state-success-primary)}
-.ccp-card.is-failed{border-left-color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, var(--dsw-alias-bg-layer-1))}
+.ccp-card{display:flex;flex-direction:column;gap:7px;padding:12px 0 14px;background:transparent;border:0;border-top:.5px solid var(--dsw-alias-border-l1);border-radius:0;box-shadow:none}
+.ccp-card.is-live{border-top-color:color-mix(in srgb, var(--ccp-accent) 35%, var(--dsw-alias-border-l1))}
+.ccp-card.is-done{border-top-color:var(--dsw-alias-border-l1)}
+.ccp-card.is-failed{border-top-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, var(--dsw-alias-border-l1))}
 .ccp-card-head{display:flex;align-items:flex-start;gap:7px}
 .ccp-card-head .ccp-dot{margin-top:7px}
 .ccp-label{flex:1;min-width:0;font-family:var(--ccp-serif);font-size:15px;font-weight:500;letter-spacing:-.01em;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
@@ -128,7 +130,7 @@ window.__ModuleLoader__.load({
 .ccp-todo.is-done .ccp-todo-text{text-decoration:line-through;opacity:.6}
 .ccp-todo.is-active{color:var(--dsw-alias-label-primary)}
 .ccp-todo.is-active .ccp-todo-mark{color:var(--ccp-accent)}
-.ccp-thoughts{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1)}
+.ccp-thoughts{display:flex;flex-direction:column;gap:4px;padding:2px 0 2px 10px;border-left:2px solid color-mix(in srgb, var(--ccp-accent) 30%, transparent);background:transparent;border-radius:0}
 .ccp-thought-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .ccp-thought-title{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.04em}
 .ccp-thought-title.is-live{color:var(--ccp-accent)}
@@ -175,10 +177,11 @@ window.__ModuleLoader__.load({
 .ccp-more:hover{text-decoration:underline}
 .ccp-foot{display:flex;flex-wrap:wrap;gap:4px 6px;color:var(--dsw-alias-label-secondary);font-size:11.5px;border-top:.5px solid var(--dsw-alias-border-l1);padding-top:7px}
 .ccp-stat{background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l1);border-radius:999px;padding:1px 7px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.ccp-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px 18px;text-align:center;color:var(--dsw-alias-label-secondary);box-sizing:border-box}
+.ccp-empty{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:40px 18px 24px;text-align:center;color:var(--dsw-alias-label-secondary);box-sizing:border-box}
 .ccp-empty-title{font-family:var(--ccp-serif);color:var(--dsw-alias-label-primary);font-size:15px;font-weight:500}
 .ccp-empty-hint{font-size:12px;line-height:1.65;max-width:280px}
 .ccp-empty-art{width:46px;height:46px;color:var(--ccp-accent);opacity:.9;margin-bottom:2px}
+.ccp-end{padding:8px 2px 2px;font-size:11px;color:var(--dsw-alias-label-secondary);opacity:.7;border-top:.5px solid var(--dsw-alias-border-l1)}
 .ccp-error{margin:4px 2px;padding:8px 10px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary);font-size:11.5px;word-break:break-word}
 .ccp-error button{margin-top:6px;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0}
 .ccp-chip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;padding:0;flex:none}
@@ -674,6 +677,7 @@ window.__ModuleLoader__.load({
                 h('div', null, h('button', { type: 'button', onClick: () => window.location.reload() }, translate('retry'))),
               ),
           ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
+          runs.length > 0 ? h('div', { className: 'ccp-end' }, translate('panel.hint')) : null,
           loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
         )
       }
