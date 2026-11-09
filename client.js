@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 14
+    const CLIENT_BUILD = 15
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'delivery.done': '交付',
       'delivery.failed': '失败',
+      'step.edited': '已编辑',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
       'error.tap': '进度采集没有挂上：{message}',
@@ -94,6 +95,7 @@ window.__ModuleLoader__.load({
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'delivery.done': 'Delivered',
       'delivery.failed': 'Failed',
+      'step.edited': 'Edited',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
       'error.tap': 'Progress capture is not attached: {message}',
@@ -110,20 +112,7 @@ window.__ModuleLoader__.load({
     const css = `
 .ccp-root{--ccp-accent:#d97757;--ccp-accent-strong:#c15f3c;--ccp-serif:Georgia,"Iowan Old Style","Palatino Linotype","Times New Roman","Microsoft YaHei",serif;--ccp-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;--ccp-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;height:100%;overflow:hidden;padding:10px 10px 6px;display:flex;flex-direction:column;gap:0;color:var(--dsw-alias-label-primary);font-family:var(--ccp-sans);font-size:12.5px;line-height:1.5;box-sizing:border-box}
 .ccp-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
-.ccp-statusbar{flex:none;display:flex;align-items:center;gap:8px;width:100%;margin-top:8px;padding:7px 2px 2px;border:0;border-top:.5px solid var(--dsw-alias-border-l1);background:none;font:inherit;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;text-align:left;font-variant-numeric:tabular-nums}
-.ccp-statusbar:hover{color:var(--dsw-alias-label-primary)}
-.ccp-status-main{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccp-status-detail{flex:none;opacity:.8}
-.ccp-breakdown{flex:none;max-height:180px;overflow:auto;display:flex;flex-direction:column;gap:4px;padding:4px 2px 6px;border-top:.5px solid var(--dsw-alias-border-l1)}
-.ccp-bd-row{display:flex;align-items:baseline;gap:6px;font-size:11px;min-width:0;font-variant-numeric:tabular-nums}
-.ccp-bd-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);align-self:center}
-.ccp-bd-dot.is-running{background:var(--ccp-accent)}
-.ccp-bd-dot.is-done{background:var(--dsw-alias-state-success-primary)}
-.ccp-bd-dot.is-failed{background:var(--dsw-alias-state-error-primary)}
-.ccp-bd-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}
-.ccp-bd-stats{flex:none;color:var(--dsw-alias-label-secondary)}
-.ccp-bd-total{border-top:.5px solid var(--dsw-alias-border-l1);padding-top:5px;margin-top:2px}
-.ccp-bd-total .ccp-bd-label{font-weight:600}
+
 .ccp-summary{display:flex;align-items:center;gap:12px;padding:2px 2px 0;color:var(--dsw-alias-label-secondary);font-size:11px}
 .ccp-brand{display:inline-flex;align-items:center;gap:6px;font-family:var(--ccp-serif);font-size:12px;color:var(--dsw-alias-label-secondary);letter-spacing:.01em}
 .ccp-brand .ccp-spark{color:var(--ccp-accent)}
@@ -174,6 +163,8 @@ window.__ModuleLoader__.load({
 .ccp-step-dot.is-bad{background:var(--dsw-alias-state-error-primary)}
 .ccp-step-dot.is-live{background:var(--ccp-accent);animation:ccp-pulse 1.4s ease-in-out infinite}
 .ccp-step-name{flex:none;font-family:var(--ccp-mono);font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.ccp-step-edit{flex:none;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.ccp-step-file{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ccp-mono);font-size:11.5px;color:var(--dsw-alias-label-primary)}
 .ccp-step-arg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
 .ccp-step-time{flex:none;font-size:10.5px;font-variant-numeric:tabular-nums;opacity:.75}
 .ccp-say{font-size:12.5px;line-height:1.6;color:var(--dsw-alias-label-primary);opacity:.92;padding:1px 3px 1px 13px;white-space:pre-wrap;word-break:break-word}
@@ -232,6 +223,12 @@ window.__ModuleLoader__.load({
     function formatOffset(at, startedAt) {
       const seconds = Math.max(0, Math.round((Number(at) - Number(startedAt)) / 1000))
       return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+    }
+
+    function basename(path) {
+      const value = String(path ?? '')
+      const index = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+      return index >= 0 ? value.slice(index + 1) : value
     }
 
     function apiPath(sessionId, source) {
@@ -449,6 +446,7 @@ window.__ModuleLoader__.load({
       const detail = useStepDetail(run.id, step.seq, open && canOpen)
       const label = String(step.tool ?? '')
       const arg = String(step.detail ?? '')
+      const isEdit = step.tool === 'Edit' || step.tool === 'Write' || step.tool === 'MultiEdit' || step.tool === 'NotebookEdit'
       const status = step.status === 'error' ? 'bad' : step.status === 'running' ? 'live' : 'ok'
       const toggle = () => {
         if (canOpen) setOpen((value) => !value)
@@ -470,8 +468,12 @@ window.__ModuleLoader__.load({
             : undefined,
         },
           h('span', { className: `ccp-step-dot is-${status}` }),
-          h('span', { className: 'ccp-step-name', title: label }, label),
-          arg === '' ? h('span', { className: 'ccp-step-arg' }) : h('span', { className: 'ccp-step-arg', title: arg }, `(${arg})`),
+          isEdit
+            ? h('span', { className: 'ccp-step-edit' }, t('step.edited'))
+            : h('span', { className: 'ccp-step-name', title: label }, label),
+          isEdit
+            ? (arg === '' ? null : h('span', { className: 'ccp-step-file', title: arg }, basename(arg)))
+            : (arg === '' ? h('span', { className: 'ccp-step-arg' }) : h('span', { className: 'ccp-step-arg', title: arg }, `(${arg})`)),
           (step.added ?? 0) > 0 ? h('span', { className: 'ccp-delta is-add' }, `+${step.added}`) : null,
           (step.removed ?? 0) > 0 ? h('span', { className: 'ccp-delta is-del' }, `−${step.removed}`) : null,
           h('span', { className: 'ccp-step-time' }, formatOffset(step.at, startedAt)),
@@ -638,7 +640,6 @@ window.__ModuleLoader__.load({
       function Monitor(props) {
         const { sessionId } = props
         const translate = useTranslate(ctx)
-        const [showBreakdown, setShowBreakdown] = useState(false)
         let visible = true
         if (typeof props.useTabInfo === 'function') {
           try {
@@ -654,29 +655,6 @@ window.__ModuleLoader__.load({
         const activeCount = runs.filter((run) => run.status === 'running' || run.status === 'starting').length
         const finished = runs.length - activeCount
         const tapProblem = meta !== null && typeof meta.tapError === 'string' && meta.tapError !== ''
-
-        const totals = runs.reduce((acc, run) => {
-          acc.steps += Number(run.stepCount) || 0
-          acc.files += Number(run.fileCount) || 0
-          acc.cost += Number(run.costUsd) || 0
-          return acc
-        }, { steps: 0, files: 0, cost: 0 })
-        const activeSteps = activeRun !== undefined ? (activeRun.stepCount ?? (activeRun.steps?.length ?? 0)) : totals.steps
-        const activeFiles = activeRun !== undefined ? (Number(activeRun.fileCount) || 0) : totals.files
-        const activeCost = activeRun !== undefined ? (Number(activeRun.costUsd) || 0) : totals.cost
-        const barText = activeRun !== undefined
-          ? [
-              translate('status.running'),
-              translate('stats.steps', { count: activeSteps }),
-              activeFiles > 0 ? translate('stats.files', { count: activeFiles }) : null,
-              activeCost > 0 ? `$${activeCost.toFixed(2)}` : null,
-            ].filter(Boolean).join(' · ')
-          : [
-              translate('stats.tasks', { count: runs.length }),
-              translate('stats.steps', { count: totals.steps }),
-              totals.files > 0 ? translate('stats.files', { count: totals.files }) : null,
-              totals.cost > 0 ? `$${totals.cost.toFixed(2)}` : null,
-            ].filter(Boolean).join(' · ')
 
         return h('div', { className: 'ccp-root' },
           h('style', null, css),
@@ -702,40 +680,6 @@ window.__ModuleLoader__.load({
             ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
             loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
           ),
-          showBreakdown && runs.length > 0 ? h('div', { className: 'ccp-breakdown' },
-            ...runs.map((run) => {
-              const steps = Number(run.stepCount) || (run.steps?.length ?? 0)
-              const files = Number(run.fileCount) || 0
-              const cost = Number(run.costUsd) || 0
-              return h('div', { className: 'ccp-bd-row', key: run.id },
-                h('span', { className: `ccp-bd-dot ${run.status === 'failed' ? 'is-failed' : run.status === 'done' ? 'is-done' : 'is-running'}` }),
-                h('span', { className: 'ccp-bd-label', title: run.label }, run.label),
-                h('span', { className: 'ccp-bd-stats' }, [
-                  translate('stats.steps', { count: steps }),
-                  files > 0 ? translate('stats.files', { count: files }) : null,
-                  cost > 0 ? `$${cost.toFixed(2)}` : null,
-                ].filter(Boolean).join(' · ')),
-              )
-            }),
-            h('div', { className: 'ccp-bd-row ccp-bd-total' },
-              h('span', { className: 'ccp-bd-label' }, translate('stats.total')),
-              h('span', { className: 'ccp-bd-stats' }, [
-                translate('stats.steps', { count: totals.steps }),
-                totals.files > 0 ? translate('stats.files', { count: totals.files }) : null,
-                totals.cost > 0 ? `$${totals.cost.toFixed(2)}` : null,
-              ].filter(Boolean).join(' · ')),
-            ),
-          ) : null,
-          runs.length > 0 ? h('button', {
-            type: 'button',
-            className: 'ccp-statusbar',
-            'aria-expanded': showBreakdown,
-            onClick: () => setShowBreakdown((value) => !value),
-          },
-            h('span', { className: 'ccp-status-main' }, barText),
-            h('span', { className: 'ccp-status-detail' }, translate('stats.detail')),
-            h('span', { className: 'ccp-chev' }, showBreakdown ? '▾' : '▸'),
-          ) : null,
         )
       }
 
