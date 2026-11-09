@@ -637,6 +637,24 @@ export function apply(ctx) {
     }
   }
 
+  /** Per-file totals of every edit step, for the delivery summary. */
+  function changesOf(run) {
+    const map = new Map()
+    for (const step of run.steps) {
+      const added = Number(step.added) || 0
+      const removed = Number(step.removed) || 0
+      if (added === 0 && removed === 0) continue
+      const path = text(step.detail)
+      if (path === '') continue
+      const entry = map.get(path) ?? { path, added: 0, removed: 0, seqs: [] }
+      entry.added += added
+      entry.removed += removed
+      entry.seqs.push(step.seq)
+      map.set(path, entry)
+    }
+    return [...map.values()]
+  }
+
   function toView(run) {
     const endedAt = run.endedAt
     return {
@@ -659,6 +677,7 @@ export function apply(ctx) {
       toolCounts: [...run.toolCounts.entries()].map(([tool, count]) => ({ tool, count })),
       files: [...run.files].slice(-40),
       fileCount: run.files.size,
+      changes: changesOf(run),
       todos: run.todos,
       usage: run.usage,
       costUsd: run.costUsd,

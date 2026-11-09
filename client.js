@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 15
+    const CLIENT_BUILD = 16
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'delivery.done': '交付',
       'delivery.failed': '失败',
+      'changes.title': '改动 {count} 个文件',
       'step.edited': '已编辑',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
@@ -95,6 +96,7 @@ window.__ModuleLoader__.load({
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'delivery.done': 'Delivered',
       'delivery.failed': 'Failed',
+      'changes.title': '{count} files changed',
       'step.edited': 'Edited',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
@@ -173,6 +175,12 @@ window.__ModuleLoader__.load({
 .ccp-delivery-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--dsw-alias-state-success-primary);margin-bottom:3px}
 .ccp-delivery.is-failed .ccp-delivery-label{color:var(--dsw-alias-state-error-primary)}
 .ccp-delivery-text{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
+.ccp-changes{margin-top:10px;display:flex;flex-direction:column;gap:2px}
+.ccp-changes-label{font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-secondary);margin-bottom:2px}
+.ccp-change-row{display:flex;align-items:center;gap:6px;border:0;background:none;font:inherit;padding:2px 0;cursor:pointer;min-width:0;text-align:left;color:var(--dsw-alias-label-primary)}
+.ccp-change-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ccp-mono);font-size:11.5px;color:var(--dsw-alias-label-primary)}
+.ccp-change-row:hover .ccp-change-name{text-decoration:underline}
+.ccp-change .ccp-diff{margin:4px 0 6px;max-height:200px}
 .ccp-chev{flex:none;opacity:.55;font-size:9px;width:8px}
 .ccp-delta{flex:none;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;border-radius:4px;line-height:1.65}
 .ccp-delta.is-add{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent)}
@@ -369,6 +377,47 @@ window.__ModuleLoader__.load({
     /** Read one step's captured input/result once and keep it for the page. */
     const stepCache = new Map()
 
+    const fileDiffCache = new Map()
+
+    function useFileDiffs(runId, seqKey, enabled) {
+      const key = `${runId}:${seqKey}`
+      const [state, setState] = useState(() => (fileDiffCache.has(key)
+        ? { loading: false, lines: fileDiffCache.get(key), error: '' }
+        : { loading: false, lines: null, error: '' }))
+      useEffect(() => {
+        if (!enabled) return undefined
+        const cached = fileDiffCache.get(key)
+        if (cached !== undefined) {
+          setState({ loading: false, lines: cached, error: '' })
+          return undefined
+        }
+        let cancelled = false
+        setState({ loading: true, lines: null, error: '' })
+        const seqs = seqKey.split(',').map((value) => Number(value)).filter((value) => Number.isFinite(value))
+        Promise.all(seqs.map((seq) => fetch(stepPath(runId, seq), { cache: 'no-store' }).then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          return response.json()
+        })))
+          .then((bodies) => {
+            const lines = []
+            bodies.forEach((body, index) => {
+              if (index > 0) lines.push({ t: 'ctx', text: '·' })
+              const diff = body.diff
+              if (diff !== null && diff !== undefined && Array.isArray(diff.lines)) lines.push(...diff.lines)
+            })
+            fileDiffCache.set(key, lines)
+            if (!cancelled) setState({ loading: false, lines, error: '' })
+          })
+          .catch((error) => {
+            if (!cancelled) setState({ loading: false, lines: null, error: error instanceof Error ? error.message : String(error) })
+          })
+        return () => {
+          cancelled = true
+        }
+      }, [enabled, key, runId, seqKey])
+      return state
+    }
+
     function useStepDetail(runId, seq, enabled) {
       const key = `${runId}:${seq}`
       const [state, setState] = useState(() => (stepCache.has(key)
@@ -513,10 +562,44 @@ window.__ModuleLoader__.load({
     function Delivery({ run, t }) {
       const failed = run.status === 'failed'
       const text = failed ? String(run.error ?? '') : String(run.resultText ?? '')
-      if (text === '') return null
+      const changes = Array.isArray(run.changes) ? run.changes : []
+      if (text === '' && changes.length === 0) return null
       return h('div', { className: `ccp-delivery${failed ? ' is-failed' : ''}` },
-        h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
-        h('div', { className: 'ccp-delivery-text' }, text),
+        text === '' ? null : h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
+        text === '' ? null : h('div', { className: 'ccp-delivery-text' }, text),
+        changes.length === 0 ? null : h(FileChanges, { run, changes, t }),
+      )
+    }
+
+    function FileChanges({ run, changes, t }) {
+      return h('div', { className: 'ccp-changes' },
+        h('div', { className: 'ccp-changes-label' }, t('changes.title', { count: changes.length })),
+        ...changes.map((change) => h(FileChange, { key: change.path, run, change, t })),
+      )
+    }
+
+    function FileChange({ run, change, t }) {
+      const [open, setOpen] = useState(false)
+      const diffs = useFileDiffs(run.id, Array.isArray(change.seqs) ? change.seqs.join(',') : '', open)
+      return h('div', { className: 'ccp-change' },
+        h('button', {
+          type: 'button',
+          className: 'ccp-change-row',
+          'aria-expanded': open,
+          onClick: () => setOpen((value) => !value),
+        },
+          h('span', { className: 'ccp-change-name', title: change.path }, basename(change.path)),
+          (change.added ?? 0) > 0 ? h('span', { className: 'ccp-delta is-add' }, `+${change.added}`) : null,
+          (change.removed ?? 0) > 0 ? h('span', { className: 'ccp-delta is-del' }, `−${change.removed}`) : null,
+          h('span', { className: 'ccp-chev' }, open ? '▾' : '▸'),
+        ),
+        open
+          ? (diffs.loading
+              ? h('div', { className: 'ccp-detail-muted' }, t('detail.loading'))
+              : diffs.error !== ''
+                ? h('div', { className: 'ccp-detail-muted' }, t('error.fetch', { message: diffs.error }))
+                : h(DiffView, { diff: { lines: diffs.lines ?? [] } }))
+          : null,
       )
     }
 
