@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 12
+    const CLIENT_BUILD = 13
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -50,6 +50,8 @@ window.__ModuleLoader__.load({
       'detail.loading': '读取中…',
       'thought.title': 'Thinking',
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
+      'delivery.done': '交付',
+      'delivery.failed': '失败',
       'step.hint': '点击查看完整输入与执行结果',
       'error.fetch': '读取进度失败：{message}',
       'error.tap': '进度采集没有挂上：{message}',
@@ -92,6 +94,8 @@ window.__ModuleLoader__.load({
       'detail.loading': 'Loading…',
       'thought.title': 'Thinking',
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
+      'delivery.done': 'Delivered',
+      'delivery.failed': 'Failed',
       'step.hint': 'Click to see the full input and result',
       'error.fetch': 'Could not read progress: {message}',
       'error.tap': 'Progress capture is not attached: {message}',
@@ -166,6 +170,11 @@ window.__ModuleLoader__.load({
 .ccp-step-arg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
 .ccp-step-time{flex:none;font-size:10.5px;font-variant-numeric:tabular-nums;opacity:.75}
 .ccp-say{font-size:12.5px;line-height:1.6;color:var(--dsw-alias-label-primary);opacity:.92;padding:1px 3px 1px 13px;white-space:pre-wrap;word-break:break-word}
+.ccp-delivery{margin-top:8px;padding:2px 0 2px 10px;border-left:2px solid var(--dsw-alias-state-success-primary)}
+.ccp-delivery.is-failed{border-left-color:var(--dsw-alias-state-error-primary)}
+.ccp-delivery-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--dsw-alias-state-success-primary);margin-bottom:3px}
+.ccp-delivery.is-failed .ccp-delivery-label{color:var(--dsw-alias-state-error-primary)}
+.ccp-delivery-text{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
 .ccp-chev{flex:none;opacity:.55;font-size:9px;width:8px}
 .ccp-delta{flex:none;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;border-radius:4px;line-height:1.65}
 .ccp-delta.is-add{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent)}
@@ -492,14 +501,22 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function Delivery({ run, t }) {
+      const failed = run.status === 'failed'
+      const text = failed ? String(run.error ?? '') : String(run.resultText ?? '')
+      if (text === '') return null
+      return h('div', { className: `ccp-delivery${failed ? ' is-failed' : ''}` },
+        h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
+        h('div', { className: 'ccp-delivery-text' }, text),
+      )
+    }
+
     function RunCard({ run, now, t }) {
       const live = run.status === 'running' || run.status === 'starting'
       const steps = Array.isArray(run.steps) ? run.steps : []
       const duration = live ? Math.max(0, now - run.startedAt) : run.durationMs
       const phaseText = run.status === 'starting' ? t('phase.starting') : run.phase === 'thinking' ? t('phase.thinking') : run.phase === 'tool' ? t('phase.tool') : ''
-      const current = live
-        ? (run.lastAction !== '' ? run.lastAction : phaseText)
-        : (run.status === 'failed' ? (run.error !== '' ? run.error : t('phase.failed')) : (run.resultText !== '' ? run.resultText : t('phase.done')))
+      const current = live ? (run.lastAction !== '' ? run.lastAction : phaseText) : ''
 
       return h('div', { className: `ccp-card${live ? ' is-live' : run.status === 'failed' ? ' is-failed' : ' is-done'}` },
         h('div', { className: 'ccp-card-head' },
@@ -520,6 +537,7 @@ window.__ModuleLoader__.load({
           startedAt: run.startedAt,
           t,
         }))),
+        live ? null : h(Delivery, { run, t }),
       )
     }
 

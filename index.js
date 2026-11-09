@@ -495,6 +495,15 @@ export function apply(ctx) {
       run.status = 'done'
       run.phase = 'done'
       run.resultText = clip(message.result, 1200)
+      // The closing assistant message is also the delivered result; keep one copy.
+      const delivered = run.resultText.trim()
+      const lastStep = run.steps[run.steps.length - 1]
+      if (lastStep !== undefined && lastStep.kind === 'say') {
+        const said = String(lastStep.text ?? '').trim()
+        if (said !== '' && (delivered.startsWith(said.slice(0, 80)) || said.startsWith(delivered.slice(0, 80)))) {
+          run.steps.pop()
+        }
+      }
       if (run.label === '') run.label = oneLine(message.result, 120)
     } else {
       run.status = 'failed'
