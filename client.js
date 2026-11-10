@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 18
+    const CLIENT_BUILD = 19
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -212,9 +212,11 @@ window.__ModuleLoader__.load({
 .ccp-detail-muted{font-size:11.5px;color:var(--dsw-alias-label-secondary)}
 .ccp-pre{margin:0 0 7px;padding:6px 7px;border-radius:8px;background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l2);font-family:var(--ccp-mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;color:var(--dsw-alias-label-primary)}
 .ccp-pre:last-child{margin-bottom:0}
-.ccp-empty{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:40px 18px 24px;text-align:center;color:var(--dsw-alias-label-secondary);box-sizing:border-box}
+.ccp-empty{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px 18px;text-align:center;color:var(--dsw-alias-label-secondary);box-sizing:border-box}
 .ccp-empty-title{font-family:var(--ccp-serif);color:var(--dsw-alias-label-primary);font-size:15px;font-weight:500}
 .ccp-empty-hint{font-size:12px;line-height:1.65;max-width:280px}
+.ccp-loading-dot{width:18px;height:18px;border-radius:50%;border:2px solid color-mix(in srgb, var(--ccp-accent) 28%, transparent);border-top-color:var(--ccp-accent);animation:ccp-spin .8s linear infinite;margin-bottom:2px}
+@keyframes ccp-spin{to{transform:rotate(360deg)}}
 .ccp-empty-art{width:46px;height:46px;color:var(--ccp-accent);opacity:.9;margin-bottom:2px}
 .ccp-error{margin:4px 2px;padding:8px 10px;border-radius:10px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary);font-size:11.5px;word-break:break-word}
 .ccp-error button{margin-top:6px;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0}
@@ -693,6 +695,13 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function LoadingState({ t }) {
+      return h('div', { className: 'ccp-empty' },
+        h('span', { className: 'ccp-loading-dot' }),
+        h('div', { className: 'ccp-empty-hint' }, t('empty.loading')),
+      )
+    }
+
     function makeHeaderChip(ctx) {
       return function HeaderChip({ sessionId }) {
         const translate = useTranslate(ctx)
@@ -794,7 +803,11 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'ccp-root' },
           h('style', null, css),
           h('div', { className: 'ccp-scroll' },
-            runs.length === 0 ? (error === '' ? h(EmptyState, { t: translate }) : null) : h('div', { className: 'ccp-summary' },
+            runs.length === 0
+              ? (error === ''
+                  ? (loading ? h(LoadingState, { t: translate }) : h(EmptyState, { t: translate }))
+                  : null)
+              : h('div', { className: 'ccp-summary' },
               h('span', { className: 'ccp-brand' }, h(Spark, null), 'Claude Code'),
               h('span', { className: 'ccp-summary-count' },
                 activeCount > 0
@@ -813,7 +826,6 @@ window.__ModuleLoader__.load({
                   h('div', null, h('button', { type: 'button', onClick: () => window.location.reload() }, translate('retry'))),
                 ),
             ...runs.map((run) => h(RunCard, { key: run.id, run, now, t: translate })),
-            loading && runs.length === 0 ? h('div', { className: 'ccp-empty-hint' }, translate('empty.loading')) : null,
           ),
         )
       }
