@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@local/claude-code-progress'
     const TAB_KIND = 'claude-code-progress'
     /** Bumped whenever the panel needs to prove it is running fresh code. */
-    const CLIENT_BUILD = 17
+    const CLIENT_BUILD = 18
 
     const zh = {
       'tab.title': 'Claude Code',
@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       'panel.hint': '只显示本会话 · 已结束任务保留 30 分钟',
       'delivery.done': '交付',
       'delivery.failed': '失败',
+      'delivery.expand': '展开全文',
       'changes.title': '已编辑 {count} 个文件',
       'step.edited': '已编辑',
       'step.hint': '点击查看完整输入与执行结果',
@@ -96,6 +97,7 @@ window.__ModuleLoader__.load({
       'panel.hint': 'This session only · finished tasks kept for 30 minutes',
       'delivery.done': 'Delivered',
       'delivery.failed': 'Failed',
+      'delivery.expand': 'Show more',
       'changes.title': 'Edited {count} files',
       'step.edited': 'Edited',
       'step.hint': 'Click to see the full input and result',
@@ -175,6 +177,9 @@ window.__ModuleLoader__.load({
 .ccp-delivery-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--dsw-alias-state-success-primary);margin-bottom:3px}
 .ccp-delivery.is-failed .ccp-delivery-label{color:var(--dsw-alias-state-error-primary)}
 .ccp-delivery-text{font-size:12.5px;line-height:1.65;color:var(--dsw-alias-label-primary);white-space:pre-wrap;word-break:break-word}
+.ccp-delivery-text.is-clamped{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.ccp-delivery-toggle{border:0;background:none;color:var(--ccp-accent-strong);font:inherit;font-size:11.5px;padding:4px 0 0;cursor:pointer;text-align:left}
+.ccp-delivery-toggle:hover{text-decoration:underline}
 .ccp-changes-card{margin-top:10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--ccp-accent) 10%, var(--dsw-alias-border-l1));background:color-mix(in srgb, var(--ccp-accent) 3%, var(--dsw-alias-bg-layer-1));overflow:hidden}
 .ccp-changes-head{display:flex;align-items:center;gap:8px;padding:10px 12px}
 .ccp-changes-icon{flex:none;width:26px;height:26px;border-radius:8px;background:color-mix(in srgb, var(--ccp-accent) 14%, transparent);color:var(--ccp-accent);display:inline-flex;align-items:center;justify-content:center}
@@ -570,10 +575,20 @@ window.__ModuleLoader__.load({
     function Delivery({ run, t }) {
       const failed = run.status === 'failed'
       const text = failed ? String(run.error ?? '') : String(run.resultText ?? '')
+      const [expanded, setExpanded] = useState(false)
       if (text === '') return null
+      const long = text.length > 240 || text.split('\n').length > 4
       return h('div', { className: `ccp-delivery${failed ? ' is-failed' : ''}` },
         h('div', { className: 'ccp-delivery-label' }, failed ? t('delivery.failed') : t('delivery.done')),
-        h('div', { className: 'ccp-delivery-text' }, text),
+        h('div', { className: `ccp-delivery-text${long && !expanded ? ' is-clamped' : ''}` }, text),
+        long
+          ? h('button', {
+              type: 'button',
+              className: 'ccp-delivery-toggle',
+              'aria-expanded': expanded,
+              onClick: () => setExpanded((value) => !value),
+            }, expanded ? t('detail.less') : t('delivery.expand'))
+          : null,
       )
     }
 
