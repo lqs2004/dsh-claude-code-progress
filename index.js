@@ -494,7 +494,7 @@ export function apply(ctx) {
     if (message.subtype === 'success' && message.is_error !== true && typeof message.result === 'string') {
       run.status = 'done'
       run.phase = 'done'
-      run.resultText = clip(message.result, 1200)
+      run.resultText = clip(message.result, 24000)
       // The closing assistant message is also the delivered result; keep one copy.
       const delivered = run.resultText.trim()
       const lastStep = run.steps[run.steps.length - 1]
@@ -509,7 +509,7 @@ export function apply(ctx) {
       run.status = 'failed'
       run.phase = 'failed'
       const errors = Array.isArray(message.errors) ? message.errors.filter((entry) => typeof entry === 'string') : []
-      run.error = errors.length > 0 ? clip(errors.join('; '), 400) : `Claude Code 返回 ${text(message.subtype) || '未知结果'}`
+      run.error = errors.length > 0 ? clip(errors.join('; '), 4000) : `Claude Code 返回 ${text(message.subtype) || '未知结果'}`
     }
   }
 
